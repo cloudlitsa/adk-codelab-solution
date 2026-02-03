@@ -20,6 +20,7 @@ test-03b-manhouse:
     echo "What time is it?" | uv run adk run steps/step03b_search_and_tool || true
     # 2. Now lets ask for weather in Zurich today
     echo "What is the weather in Zurich today?" | uv run adk run steps/step03b_search_and_tool || true
+
 # --- CLI RUN COMMANDS ---
 
 # Run Step 1: Basic Agent (CLI)
@@ -61,17 +62,17 @@ web-4steps:
     mkdir -p log && uv run adk web steps/ > log/web.log 2>&1
 
 clean:
-    rm -rf .venv/
+    rm -rf .venv/ rag/adk-python/
 
 # Downloads ADK python under rag/
 rag:
     ./download-adk.sh
 
-# Testing Gemini CLI 
+# Testing Gemini CLI
 nanobanana-gen-favicon:
     #!/bin/bash
     export NANOBANANA_MODEL="gemini-3-pro-image-preview"
     echo "Check docs in here: https://github.com/gemini-cli-extensions/nanobanana"
-    
+
     #gemini --yolo -p "/icon 'a funny icon for this workshop' and create a SMALL favicon.ico and a BIGGER workshop.png"
     gemini --yolo -p "/diagram 'Coding steps (read the WORKSHOP.md first)' --type=flowchart --style=professional --preview"
