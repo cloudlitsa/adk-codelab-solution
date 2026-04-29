@@ -7,6 +7,7 @@ from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from mcp import StdioServerParameters
 
+# 1. Utility Tool
 def now() -> dict:
     """Returns the current date and time."""
     return {
@@ -14,6 +15,7 @@ def now() -> dict:
         "current_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
 
+# 2. Worker Agent: Booking Specialist (Airbnb)
 airbnb_mcp = MCPToolset(
     connection_params=StdioConnectionParams(
         server_params=StdioServerParameters(
@@ -23,33 +25,50 @@ airbnb_mcp = MCPToolset(
     )
 )
 
-# Subagent: wraps google_search so it can be mixed with other tools in the root agent
-review_agent = Agent(
-    name="review_agent",
+booking_agent = Agent(
+    name="booking_specialist",
     model="gemini-2.5-flash",
     instruction=(
-        "You are a hotel review specialist. When given a hotel name and location, "
-        "use Google Search to find recent guest reviews. "
-        "Summarise as: ✅ Positives (up to 3 bullets) and ❌ Negatives (up to 3 bullets). "
-        "Be concise and factual."
+        "You are an expert at finding accommodations on Airbnb. "
+        "Search for listings based on the user's location and dates. "
+        "Return the raw data including name, price, and key features."
+    ),
+    tools=[airbnb_mcp],
+)
+
+# 3. Worker Agent: Review Specialist (Google Search)
+review_agent = Agent(
+    name="review_specialist",
+    model="gemini-2.5-flash",
+    instruction=(
+        "You are a hotel review specialist. Use Google Search to find recent guest reviews "
+        "for specific hotels. Summarise findings as: ✅ Positives and ❌ Negatives. "
+        "Focus on noise levels, pet-friendliness, and floor level if possible."
     ),
     tools=[google_search],
 )
 
+# 4. Wrap workers as tools for the Manager
+booking_tool = AgentTool(agent=booking_agent)
 review_tool = AgentTool(agent=review_agent)
 time_tool = FunctionTool(func=now)
 
+# 5. Root Manager Agent
+# This agent orchestrates the workers and applies the "Litsa-rating"
 root_agent = Agent(
-    name="travel_mcp",
+    name="travel_concierge_manager",
     model="gemini-2.5-flash",
     instruction=(
-        "You are a helpful travel assistant. You can find accommodation using Airbnb, get reviews, and check the current time. "
-        "Return search results as a table with: hotel emoji 🏨, price 💰, and moon-phase star ratings 🌕🌕🌗🌑 (use 🌑 for empty, 🌗 for half). "
-        "Prioritise listings that are: pet-friendly 🐾, close to public transport 🚇, quiet 🔇, and not on the ground floor. "
-        "For each result, add a 'Litsa-rating' from 1-10 🌟 based on how well it matches those preferences — "
-        "deduct points for ground floor, noise, distance from transport, or no pets allowed. "
-        "Sort results by Litsa-rating descending. "
-        "If the user asks for reviews of a specific hotel, use the review_agent tool."
+        "You are a luxury travel concierge manager. Your job is to coordinate your specialists "
+        "to provide the perfect recommendation.\n\n"
+        "STEPS:\n"
+        "1. Check the current time using 'now' if needed.\n"
+        "2. Ask the booking_specialist to find options at the user's destination.\n"
+        "3. For the most promising options, ask the review_specialist for a vibe check.\n"
+        "4. PRESENTATION: Return results as a table with: 🏨 Hotel, 💰 Price, and 🌕🌕🌕🌑 ratings.\n"
+        "5. RATING LOGIC: Apply the 'Litsa-rating' (1-10 🌟). "
+        "Start at 10 and deduct points for: ground floor, noise, no pets, or far from transport.\n"
+        "6. Sort by Litsa-rating descending."
     ),
-    tools=[time_tool, airbnb_mcp, review_tool],
+    tools=[time_tool, booking_tool, review_tool],
 )
